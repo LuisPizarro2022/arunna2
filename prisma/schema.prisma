@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum ContactStatus {
+  NUEVO
+  CONTACTADO
+  CALIFICADO
+  CITA_AGENDADA
+  CITA_HECHA
+  PROPUESTA
+  RESERVA
+  CIERRE
+  PERDIDO
+}
+
+enum CampaignRunStatus {
+  DRAFT
+  RUNNING
+  DONE
+}
+
+enum CampaignRunItemState {
+  PENDING
+  OPENED
+  SENT
+  SKIPPED
+}
+
+enum RuleMatchType {
+  CONTAINS
+  STARTS_WITH
+  ENDS_WITH
+  EXACT
+}
+
+model Account {
+  id               String     @id @default(cuid())
+  name             String
+  phoneE164        String?
+  chromeProfileDir String
+  isActive         Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  campaigns        Campaign[]
+}
+
+model Contact {
+  id          String           @id @default(cuid())
+  name        String
+  phoneE164   String           @unique
+  notes       String?
+  status      ContactStatus    @default(NUEVO)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  tags        ContactTag[]
+  targets     CampaignTarget[]
+  runItems    CampaignRunItem[]
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String       @unique
+  contacts ContactTag[]
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Campaign {
+  id           String            @id @default(cuid())
+  name         String
+  accountId    String
+  minDelaySec  Int
+  maxDelaySec  Int
+  createdAt    DateTime          @default(now())
+  account      Account           @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  messages     CampaignMessage[]
+  targets      CampaignTarget[]
+  runs         CampaignRun[]
+}
+
+model CampaignMessage {
+  id         String   @id @default(cuid())
+  campaignId String
+  order      Int
+  body       String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model CampaignTarget {
+  campaignId String
+  contactId  String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([campaignId, contactId])
+}
+
+model CampaignRun {
+  id         String           @id @default(cuid())
+  campaignId String
+  startedAt  DateTime         @default(now())
+  finishedAt DateTime?
+  status     CampaignRunStatus @default(DRAFT)
+  campaign   Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  items      CampaignRunItem[]
+}
+
+model CampaignRunItem {
+  id        String              @id @default(cuid())
+  runId     String
+  contactId String
+  state     CampaignRunItemState @default(PENDING)
+  openedAt  DateTime?
+  sentAt    DateTime?
+  run       CampaignRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  contact   Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+model Rule {
+  id        String        @id @default(cuid())
+  name      String
+  keyword   String
+  matchType RuleMatchType @default(CONTAINS)
+  response  String
+  enabled   Boolean       @default(true)
+}
